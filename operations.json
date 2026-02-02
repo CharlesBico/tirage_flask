@@ -1,5 +1,40 @@
 [
   {
+    "date": "2026-02-02 14:00:45",
+    "type": "Retrait",
+    "amount": 1.0,
+    "description": "Comm de découvert",
+    "balance": -7511.0
+  },
+  {
+    "date": "2026-02-02 14:00:17",
+    "type": "Retrait",
+    "amount": 1.0,
+    "description": "Taxe sur int déb",
+    "balance": -7510.0
+  },
+  {
+    "date": "2026-02-02 13:59:25",
+    "type": "Retrait",
+    "amount": 14.0,
+    "description": "Intérêt débiteur",
+    "balance": -7509.0
+  },
+  {
+    "date": "2026-02-02 13:58:56",
+    "type": "Retrait",
+    "amount": 2200.0,
+    "description": "TAR NSIA BQUEDIRECT",
+    "balance": -7495.0
+  },
+  {
+    "date": "2026-02-02 13:58:11",
+    "type": "Retrait",
+    "amount": 5400.0,
+    "description": "Frais de tenue de compte",
+    "balance": -5295.0
+  },
+  {
     "date": "2026-01-26 14:07:25",
     "type": "Retrait",
     "amount": 7500.0,
