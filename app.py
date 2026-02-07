@@ -1,85 +1,80 @@
 from flask import Flask, jsonify, request
 import random
 import time
+from threading import Thread
 
 app = Flask(__name__)
 
-# =========================
-# CONFIGURATION
-# =========================
-DUREE_OUVERT = 600   # 10 minutes
-DUREE_FERME = 60    # 1 minute
+# ================= CONFIG =================
+DUREE_OUVERT = 600
+DUREE_FERME = 60
 
 etat = "ouvert"
-debut_phase = time.time()
 participants = []
 gagnant = None
+fin_cycle = time.time() + DUREE_OUVERT
 
-# =========================
-# LOGIQUE CENTRALE (CRITIQUE)
-# =========================
-def update_etat():
-    global etat, debut_phase, gagnant, participants
+# ================= CYCLE TEMPS REEL =================
+def cycle():
+    global etat, participants, gagnant, fin_cycle
 
-    now = time.time()
-    elapsed = int(now - debut_phase)
+    while True:
 
-    if etat == "ouvert" and elapsed >= DUREE_OUVERT:
-        # Tirage du gagnant
-        gagnant = random.choice(participants) if participants else None
-        etat = "fermé"
-        debut_phase = now
-
-    elif etat == "fermé" and elapsed >= DUREE_FERME:
-        # Nouveau cycle
+        # PHASE OUVERTE
         etat = "ouvert"
-        debut_phase = now
-        gagnant = None
         participants.clear()
+        gagnant = None
+        fin_cycle = time.time() + DUREE_OUVERT
 
-# =========================
-# ENDPOINTS
-# =========================
+        time.sleep(DUREE_OUVERT)
+
+        # PHASE FERMEE + TIRAGE
+        etat = "fermé"
+
+        if participants:
+            gagnant = random.choice(participants)
+        else:
+            gagnant = None
+
+        fin_cycle = time.time() + DUREE_FERME
+
+        time.sleep(DUREE_FERME)
+
+# Lancement thread
+Thread(target=cycle, daemon=True).start()
+
+# ================= ENDPOINTS =================
 @app.route("/statut")
 def statut():
-    update_etat()
-
-    now = time.time()
-    elapsed = int(now - debut_phase)
-
-    if etat == "ouvert":
-        temps_restant = max(0, DUREE_OUVERT - elapsed)
-    else:
-        temps_restant = max(0, DUREE_FERME - elapsed)
+    temps = max(int(fin_cycle - time.time()), 0)
 
     return jsonify({
         "etat": etat,
         "gagnant": gagnant,
-        "temps_restant": temps_restant
+        "temps_restant": temps
     })
+
 
 @app.route("/participants")
 def get_participants():
     return jsonify({"participants": participants})
 
+
 @app.route("/participer", methods=["POST"])
 def participer():
-    update_etat()
-
-    data = request.get_json()
-    nom = data.get("nom")
 
     if etat != "ouvert":
         return jsonify({"error": "Participation fermée"}), 400
 
-    if not nom:
-        return jsonify({"error": "Nom invalide"}), 400
+    data = request.get_json()
+    nom = data.get("nom")
 
-    participants.append(nom)
-    return jsonify({"success": True})
+    if nom:
+        participants.append(nom)
+        return jsonify({"success": True})
 
-# =========================
-# MAIN
-# =========================
+    return jsonify({"error": "Nom invalide"}), 400
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
