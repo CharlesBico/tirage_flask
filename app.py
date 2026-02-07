@@ -1,78 +1,94 @@
 from flask import Flask, jsonify, request
 import random
 import time
+from threading import Thread, Lock
 
 app = Flask(__name__)
 
-# ================= CONFIG =================
+# =========================
+# CONFIGURATION
+# =========================
 DUREE_OUVERT = 600   # 10 minutes
 DUREE_FERME = 60     # 1 minute
 
-etat = "ouvert"
-participants = []
+etat = "fermé"
+participants = set()   # ✅ set = pas de doublons
 gagnant = None
-fin_phase = time.time() + DUREE_OUVERT
+fin_cycle = 0
 
+lock = Lock()
 
-# ================= LOGIQUE TEMPS =================
-def update_cycle():
-    global etat, participants, gagnant, fin_phase
+# =========================
+# CYCLE AUTOMATIQUE
+# =========================
+def cycle_automatique():
+    global etat, gagnant, fin_cycle, participants
 
-    now = time.time()
+    while True:
+        # 🔓 PHASE OUVERTE
+        with lock:
+            etat = "ouvert"
+            participants.clear()
+            gagnant = None
+            fin_cycle = time.time() + DUREE_OUVERT
 
-    if now < fin_phase:
-        return
+        while time.time() < fin_cycle:
+            time.sleep(1)
 
-    # 🔁 PHASE TERMINÉE
-    if etat == "ouvert":
-        # ➜ on ferme + tirage
-        etat = "fermé"
-        gagnant = random.choice(participants) if participants else None
-        fin_phase = now + DUREE_FERME
+        # 🔒 PHASE FERMÉE (TIRAGE)
+        with lock:
+            etat = "fermé"
+            if participants:
+                gagnant = random.choice(list(participants))
+            else:
+                gagnant = None
+            fin_cycle = time.time() + DUREE_FERME
 
-    else:
-        # ➜ on rouvre
-        etat = "ouvert"
-        participants.clear()
-        gagnant = None
-        fin_phase = now + DUREE_OUVERT
+        while time.time() < fin_cycle:
+            time.sleep(1)
 
+# =========================
+# THREAD
+# =========================
+Thread(target=cycle_automatique, daemon=True).start()
 
-# ================= ENDPOINTS =================
+# =========================
+# ENDPOINTS
+# =========================
 @app.route("/statut")
 def statut():
-    update_cycle()
-
-    temps = max(int(fin_phase - time.time()), 0)
-
-    return jsonify({
-        "etat": etat,
-        "gagnant": gagnant,
-        "temps_restant": temps
-    })
-
+    with lock:
+        temps_restant = max(int(fin_cycle - time.time()), 0)
+        return jsonify({
+            "etat": etat,
+            "gagnant": gagnant,
+            "temps_restant": temps_restant
+        })
 
 @app.route("/participants")
-def get_participants():
-    return jsonify({"participants": participants})
-
+def liste_participants():
+    with lock:
+        return jsonify({
+            "participants": sorted(list(participants))
+        })
 
 @app.route("/participer", methods=["POST"])
 def participer():
-    update_cycle()
+    with lock:
+        if etat != "ouvert":
+            return jsonify({"error": "Tirage fermé"}), 400
 
-    if etat != "ouvert":
-        return jsonify({"error": "Participation fermée"}), 400
+        data = request.get_json()
+        nom = data.get("nom", "").strip()
 
-    data = request.get_json()
-    nom = data.get("nom")
+        if not nom:
+            return jsonify({"error": "Nom invalide"}), 400
 
-    if nom:
-        participants.append(nom)
+        participants.add(nom)  # ✅ pas de doublons
         return jsonify({"success": True})
 
-    return jsonify({"error": "Nom invalide"}), 400
-
-
+# =========================
+# MAIN
+# =========================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
