@@ -5,9 +5,12 @@ from threading import Thread
 
 app = Flask(__name__)
 
-# Durée en secondes
+# =========================
+# CONFIGURATION
+# =========================
 DUREE_OUVERT = 600   # 10 min
 DUREE_TIRAGE = 60    # 1 min
+DUREE_FERME = 60     # 1 min après tirage pour afficher gagnant
 
 etat = "fermé"
 participants = []
@@ -15,34 +18,44 @@ gagnant = None
 fin_ouvert = 0
 fin_tirage = 0
 
+# =========================
+# LOGIQUE CYCLE
+# =========================
 def cycle_automatique():
     global etat, participants, gagnant, fin_ouvert, fin_tirage
+
     while True:
-        # OUVERT
+        # --- OUVERT ---
         etat = "ouvert"
         participants.clear()
         gagnant = None
         fin_ouvert = time.time() + DUREE_OUVERT
         while time.time() < fin_ouvert:
-            time.sleep(1)  # attend chaque seconde
+            time.sleep(1)
 
-        # TIRAGE
+        # --- TIRAGE ---
         etat = "tirage"
         fin_tirage = time.time() + DUREE_TIRAGE
         while time.time() < fin_tirage:
-            time.sleep(1)  # attend chaque seconde
+            time.sleep(1)
 
-        # FIN
+        # --- FERMÉ et tirage du gagnant ---
+        etat = "fermé"
         if participants:
             gagnant = random.choice(list(set(participants)))  # supprime doublons
         else:
             gagnant = None
-        etat = "fermé"
 
-# Thread pour le cycle automatique
+        # pause pour afficher le gagnant avant de repartir
+        time.sleep(DUREE_FERME)
+
+# Thread pour exécuter le cycle automatiquement
 thread = Thread(target=cycle_automatique, daemon=True)
 thread.start()
 
+# =========================
+# ENDPOINTS
+# =========================
 @app.route("/statut")
 def get_statut():
     if etat == "ouvert":
