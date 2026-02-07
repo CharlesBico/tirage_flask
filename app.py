@@ -1,52 +1,49 @@
 from flask import Flask, jsonify, request
 import random
 import time
-from threading import Thread
 
 app = Flask(__name__)
 
 # ================= CONFIG =================
-DUREE_OUVERT = 600
-DUREE_FERME = 60
+DUREE_OUVERT = 600   # 10 minutes
+DUREE_FERME = 60     # 1 minute
 
 etat = "ouvert"
 participants = []
 gagnant = None
-fin_cycle = time.time() + DUREE_OUVERT
+fin_phase = time.time() + DUREE_OUVERT
 
-# ================= CYCLE TEMPS REEL =================
-def cycle():
-    global etat, participants, gagnant, fin_cycle
 
-    while True:
+# ================= LOGIQUE TEMPS =================
+def update_cycle():
+    global etat, participants, gagnant, fin_phase
 
-        # PHASE OUVERTE
+    now = time.time()
+
+    if now < fin_phase:
+        return
+
+    # 🔁 PHASE TERMINÉE
+    if etat == "ouvert":
+        # ➜ on ferme + tirage
+        etat = "fermé"
+        gagnant = random.choice(participants) if participants else None
+        fin_phase = now + DUREE_FERME
+
+    else:
+        # ➜ on rouvre
         etat = "ouvert"
         participants.clear()
         gagnant = None
-        fin_cycle = time.time() + DUREE_OUVERT
+        fin_phase = now + DUREE_OUVERT
 
-        time.sleep(DUREE_OUVERT)
-
-        # PHASE FERMEE + TIRAGE
-        etat = "fermé"
-
-        if participants:
-            gagnant = random.choice(participants)
-        else:
-            gagnant = None
-
-        fin_cycle = time.time() + DUREE_FERME
-
-        time.sleep(DUREE_FERME)
-
-# Lancement thread
-Thread(target=cycle, daemon=True).start()
 
 # ================= ENDPOINTS =================
 @app.route("/statut")
 def statut():
-    temps = max(int(fin_cycle - time.time()), 0)
+    update_cycle()
+
+    temps = max(int(fin_phase - time.time()), 0)
 
     return jsonify({
         "etat": etat,
@@ -62,6 +59,7 @@ def get_participants():
 
 @app.route("/participer", methods=["POST"])
 def participer():
+    update_cycle()
 
     if etat != "ouvert":
         return jsonify({"error": "Participation fermée"}), 400
