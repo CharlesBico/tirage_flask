@@ -5,51 +5,53 @@ from threading import Thread
 
 app = Flask(__name__)
 
-# =========================
-# CONFIGURATION
-# =========================
+# Durée en secondes
 DUREE_OUVERT = 600   # 10 min
 DUREE_TIRAGE = 60    # 1 min
 
-etat = "fermé"        # ouvert / tirage / fermé
+etat = "fermé"
 participants = []
 gagnant = None
-fin_cycle = time.time()
+fin_ouvert = 0
+fin_tirage = 0
 
-# =========================
-# LOGIQUE CYCLE
-# =========================
 def cycle_automatique():
-    global etat, participants, gagnant, fin_cycle
+    global etat, participants, gagnant, fin_ouvert, fin_tirage
     while True:
-        # --- Phase ouverte ---
+        # OUVERT
         etat = "ouvert"
         participants.clear()
         gagnant = None
-        fin_cycle = time.time() + DUREE_OUVERT
-        time.sleep(DUREE_OUVERT)
+        fin_ouvert = time.time() + DUREE_OUVERT
+        while time.time() < fin_ouvert:
+            time.sleep(1)  # attend chaque seconde
 
-        # --- Phase tirage ---
+        # TIRAGE
         etat = "tirage"
-        fin_cycle = time.time() + DUREE_TIRAGE
-        time.sleep(DUREE_TIRAGE)
+        fin_tirage = time.time() + DUREE_TIRAGE
+        while time.time() < fin_tirage:
+            time.sleep(1)  # attend chaque seconde
 
-        # --- Phase fermée / gagnant ---
+        # FIN
+        if participants:
+            gagnant = random.choice(list(set(participants)))  # supprime doublons
+        else:
+            gagnant = None
         etat = "fermé"
-        gagnant = random.choice(participants) if participants else None
-        fin_cycle = time.time() + 5  # court délai avant la prochaine ouverture
-        time.sleep(5)
 
-# Thread pour exécuter le cycle automatiquement
+# Thread pour le cycle automatique
 thread = Thread(target=cycle_automatique, daemon=True)
 thread.start()
 
-# =========================
-# ENDPOINTS
-# =========================
 @app.route("/statut")
 def get_statut():
-    temps_restants = max(int(fin_cycle - time.time()), 0)
+    if etat == "ouvert":
+        temps_restants = max(int(fin_ouvert - time.time()), 0)
+    elif etat == "tirage":
+        temps_restants = max(int(fin_tirage - time.time()), 0)
+    else:
+        temps_restants = 0
+
     return jsonify({
         "etat": etat,
         "gagnant": gagnant,
@@ -65,10 +67,8 @@ def add_participant():
     data = request.get_json()
     nom = data.get("nom")
     if nom and etat == "ouvert":
-        if nom not in participants:  # interdiction des doublons
-            participants.append(nom)
-            return jsonify({"success": True})
-        return jsonify({"error": "Nom déjà ajouté"}), 400
+        participants.append(nom)
+        return jsonify({"success": True})
     return jsonify({"error": "Participation fermée"}), 400
 
 if __name__ == "__main__":
