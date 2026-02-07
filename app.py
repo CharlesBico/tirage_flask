@@ -79,10 +79,20 @@ def get_participants():
 def add_participant():
     data = request.get_json()
     nom = data.get("nom")
-    if nom and etat == "ouvert":
-        participants.append(nom)
-        return jsonify({"success": True})
-    return jsonify({"error": "Participation fermée"}), 400
+
+    if not nom:
+        return jsonify({"error": "Nom invalide"}), 400
+
+    if etat != "ouvert":
+        return jsonify({"error": "Participation fermée"}), 400
+
+    # ✅ BLOQUER LES DOUBLONS
+    if nom in participants:
+        return jsonify({"error": "Nom déjà inscrit"}), 400
+
+    participants.append(nom)
+    return jsonify({"success": True})
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
